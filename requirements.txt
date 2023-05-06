@@ -1,0 +1,6 @@
+datetime
+paddlepaddle
+imgaug
+paddleocr
+pillow
+tkinter
