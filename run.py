@@ -85,7 +85,11 @@ class OCRApp:
             entry.grid(row=3, column=w)
             self.ocr_result_list.append(entry)
 
+        barcode_rev_label = tk.Label(rev_frm, text="Barcode")
+        barcode_rev_label.grid(row=0, column=0, columnspan=17)
 
+        ocr_rev_label = tk.Label(rev_frm, text="OCR Revision")
+        ocr_rev_label.grid(row=2, column=0, columnspan=17)
 
         # Create submit button
         self.submit_button = tk.Button(frm_result, text="Submit Result")
@@ -102,6 +106,26 @@ class OCRApp:
             # Convert to grayscale
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
+            # Read Barcode
+            detectedBarcodes = decode(img)
+
+            # Draw barcode on image
+            draw_barcode(detectedBarcodes, img)
+
+            # Set barcode result
+            barcode = "Not Detected"
+
+            if detectedBarcodes:
+                barcode = detectedBarcodes[0].data.decode('utf-8')
+                
+                i = 0
+                for bar in self.barcode_result_list:
+                    bar.config(text=barcode[i])
+                    i += 1
+
+            # Write barcode Label            
+            self.barcode_result.config(text=barcode)
+
             # Run OCR on image
             result = self.ocr_loaded_object.ocr(gray)[0]
 
@@ -114,34 +138,11 @@ class OCRApp:
             if result:
                 ocr = result[0][1][0]
 
-                i = 0
-                for o in self.ocr_result_list:
-                    o.insert(tk.END, ocr[i])
-                    o.config(bg='light green')
-                    i += 1
-
             # Write OCR Label            
             self.ocr_result.config(text=result[0][1][0])
 
-            # Read Barcode
-            detectedBarcodes = decode(img)
-
-            # Draw barcode on image
-            draw_barcode(detectedBarcodes, img)
-
-            # Set barcode result
-            barcode = "Not Detected"
-
-            if detectedBarcodes:
-                barcode = detectedBarcodes[0].data.decode('utf-8')
-
-                i = 0
-                for bar in self.barcode_result_list:
-                    bar.config(text=barcode[i])
-                    i += 1
-
-            # Write barcode Label            
-            self.barcode_result.config(text=barcode)
+            for o in self.ocr_result_list:
+                o.delete('0.end', 'end')
 
             # 
             if ocr != "Not Detected" and barcode != "Not Detected":
@@ -150,6 +151,20 @@ class OCRApp:
 
                 # Write accuracy label
                 self.acc_result.config(text=str(acc * 100) + "%")
+
+                opcodes = SequenceMatcher(None, ocr, barcode).get_opcodes()
+
+                for op in opcodes:
+                    if op[0] == 'equal':
+                        for i in range(op[3], op[4]):
+                            self.ocr_result_list[i].insert(tk.END, ocr[i])
+                            self.ocr_result_list[i].config(bg='light green')
+                    
+                    elif op[0] == 'replace':
+                        for i in range(op[3], op[4]):
+                            self.ocr_result_list[i].insert(tk.END, ocr[i] if len(ocr) > i else ' ')
+                            self.ocr_result_list[i].config(bg='red')
+
 
             # Convert Image to RGB format
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
