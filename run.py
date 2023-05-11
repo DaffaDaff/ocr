@@ -19,30 +19,36 @@ class OCRApp:
         master.rowconfigure(0, minsize=400, weight=1)
         #master.columnconfigure(1, minsize=400, weight=1)
 
-        # Create frame button
+        ## Create frame button
         frm_buttons = tk.Frame(master, relief=tk.RAISED, bd=2)
         frm_buttons.grid(row=0, column=0, sticky="ns")
 
         # Create button for selecting file
         self.file_button = tk.Button(frm_buttons, text="Select File", command=self.select_file)
-        self.file_button.grid(row=0, column=0, sticky='ew', padx=5, pady=5)
+        self.file_button.grid(row=0, column=0, sticky='ew', padx=5)
+
+        # Create camera checkbox
+        self.use_camera = tk.IntVar()
+        self.is_camera = tk.Checkbutton(frm_buttons, text="Use Camera?", variable=self.use_camera, onvalue=1, offvalue=0)
+        self.is_camera.grid(row=1, column=0, sticky='ew', padx=5)
 
         # Create button for performing OCR
         self.ocr_button = tk.Button(frm_buttons, text="Submit", command=self.perform_ocr)
-        self.ocr_button.grid(row=1, column=0, sticky='ew', padx=5)
+        self.ocr_button.grid(row=2, column=0, sticky='ew', padx=5,pady=10)
 
-        # Create image frame
+        ## Create image frame
         frm_image = tk.Frame(master, relief=tk.SUNKEN, bd=2)
         frm_image.grid(row=0, column=1, sticky="ns")
 
+        # Create image label
         self.image_label = tk.Label(frm_image)
         self.image_label.grid(row=0, column=1, sticky='nsew')
 
-        # Create result frame
+        ### Create result frame
         frm_result = tk.Frame(master)
         frm_result.grid(row=0, column=2, sticky="ns")
 
-        # Create frame for OCR row
+        ## Create frame for OCR row
         ocr_frm = tk.Frame(frm_result, padx=5, pady=5)
         ocr_frm.grid(row=0, column=0, sticky='w')
         
@@ -51,7 +57,7 @@ class OCRApp:
         self.ocr_result = tk.Label(ocr_frm, relief=tk.SUNKEN)
         self.ocr_result.grid(row=0, column=1, sticky='w')
 
-        # Create frame for barcode row
+        ## Create frame for barcode row
         barcode_frm = tk.Frame(frm_result, padx=5, pady=5)
         barcode_frm.grid(row=1, column=0, sticky='w')
         
@@ -60,7 +66,7 @@ class OCRApp:
         self.barcode_result = tk.Label(barcode_frm, relief=tk.SUNKEN)
         self.barcode_result.grid(row=0, column=1, sticky='w')
 
-        # Create frame for accuracy row
+        ## Create frame for accuracy row
         acc_frm = tk.Frame(frm_result, padx=5, pady=15)
         acc_frm.grid(row=2, column=0, sticky='w')
         
@@ -69,7 +75,7 @@ class OCRApp:
         self.acc_result = tk.Label(acc_frm, relief=tk.SUNKEN)
         self.acc_result.grid(row=0, column=1, sticky='w')
 
-        # Create frame for accuracy row
+        ## Create frame for revision row
         rev_frm = tk.Frame(frm_result, padx=5, pady=50)
         rev_frm.grid(row=3, column=0, sticky='w')
         
@@ -91,7 +97,7 @@ class OCRApp:
         ocr_rev_label = tk.Label(rev_frm, text="OCR Revision")
         ocr_rev_label.grid(row=2, column=0, columnspan=17)
 
-        # Create submit button
+        ## Create submit button
         self.submit_button = tk.Button(frm_result, text="Submit Result")
         self.submit_button.grid(row=4, column=0, sticky='ew', padx=50, pady=100)
 
@@ -102,15 +108,25 @@ class OCRApp:
         cap = cv2.VideoCapture(0)
         ret, frame = cap.read()
 
-        if self.file_path or ret:
+        print(self.use_camera.get())
+
+        if self.file_path or self.use_camera.get():
             # Read image from file path
             if self.file_path:
                 img = cv2.imread(self.file_path)
 
-            
+            # Set barcode result
+            barcode = "Not Detected"
+            # Set OCR Result
+            ocr = "Not Detected"
 
-            while(ret):
+            while(self.use_camera.get()):
                 ret, frame = cap.read()
+
+                # Reset barcode result
+                barcode = "Not Detected"
+                # Reset OCR Result
+                ocr = "Not Detected"
 
                 # Read Barcode
                 detectedBarcodes = decode(frame)
@@ -124,10 +140,20 @@ class OCRApp:
                 # Draw OCR result on image
                 draw_ocr(result, frame)
 
+                if ocr != "Not Detected" and barcode != "Not Detected":
+                    # Calculate string math ratio
+                    acc = SequenceMatcher(None, ocr, barcode).ratio()
+
+                    if acc > 0.7:
+                        img = frame
+                        cv2.destroyAllWindows()
+                        break
+
                 cv2.imshow('Frame', frame)
 
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     img = frame
+                    cv2.destroyAllWindows()
                     break
 
             # Convert to grayscale
@@ -138,9 +164,6 @@ class OCRApp:
 
             # Draw barcode on image
             draw_barcode(detectedBarcodes, img)
-
-            # Set barcode result
-            barcode = "Not Detected"
 
             if detectedBarcodes:
                 barcode = detectedBarcodes[0].data.decode('utf-8')
@@ -158,9 +181,6 @@ class OCRApp:
 
             # Draw OCR result on image
             draw_ocr(result, img)
-
-            # Set OCR Result
-            ocr = "Not Detected"
 
             if result:
                 ocr = result[0][1][0]
@@ -205,9 +225,6 @@ class OCRApp:
             # Write and display image
             self.image_label.image = imgtk
             self.image_label.config(image=imgtk)
-
-        else:
-            pass
 
 def draw_ocr(datas, img):
     for data in datas:
