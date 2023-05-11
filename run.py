@@ -114,6 +114,18 @@ class OCRApp:
 
                 cv2.imshow('Frame', frame)
 
+                # Read Barcode
+                detectedBarcodes = decode(frame)
+
+                # Draw barcode on image
+                draw_barcode(detectedBarcodes, frame)
+
+                # Run OCR on image
+                result = self.ocr_loaded_object.ocr(frame)[0]
+
+                # Draw OCR result on image
+                draw_ocr(result, frame)
+
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     img = frame
                     break
