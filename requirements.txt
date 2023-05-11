@@ -3,4 +3,5 @@ paddlepaddle
 imgaug
 paddleocr
 pillow
-tkinter
+tk
+pyzbar

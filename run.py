@@ -99,9 +99,24 @@ class OCRApp:
         self.file_path = filedialog.askopenfilename(filetypes=[("Image Files", "*.jpg;*.jpeg;*.png;*.bmp")])
 
     def perform_ocr(self):
-        if self.file_path:
+        cap = cv2.VideoCapture(0)
+        ret, frame = cap.read()
+
+        if self.file_path or ret:
             # Read image from file path
-            img = cv2.imread(self.file_path)
+            if self.file_path:
+                img = cv2.imread(self.file_path)
+
+            
+
+            while(ret):
+                ret, frame = cap.read()
+
+                cv2.imshow('Frame', frame)
+
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    img = frame
+                    break
 
             # Convert to grayscale
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -139,7 +154,7 @@ class OCRApp:
                 ocr = result[0][1][0]
 
             # Write OCR Label            
-            self.ocr_result.config(text=result[0][1][0])
+            self.ocr_result.config(text=ocr)
 
             for o in self.ocr_result_list:
                 o.delete('0.end', 'end')
@@ -175,7 +190,7 @@ class OCRApp:
             # Convert PIL Image to PIL PhotoImage
             imgtk = ImageTk.PhotoImage(image)
 
-            # Write and displat image
+            # Write and display image
             self.image_label.image = imgtk
             self.image_label.config(image=imgtk)
 
