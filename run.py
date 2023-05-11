@@ -112,8 +112,6 @@ class OCRApp:
             while(ret):
                 ret, frame = cap.read()
 
-                cv2.imshow('Frame', frame)
-
                 # Read Barcode
                 detectedBarcodes = decode(frame)
 
@@ -125,6 +123,8 @@ class OCRApp:
 
                 # Draw OCR result on image
                 draw_ocr(result, frame)
+
+                cv2.imshow('Frame', frame)
 
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     img = frame
