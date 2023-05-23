@@ -128,12 +128,22 @@ class OCRApp:
         # Draw OCR result on image
         draw_ocr(result, frame)
 
-        if ocr != "Not Detected" and barcode != "Not Detected":
-            # Calculate string math ratio
-            acc = SequenceMatcher(None, ocr, barcode).ratio()
+        acc = 0.0
+        for b in detectedBarcodes:
+            b = b.data.decode('utf-8')
+            
+            for c in result:
+                c = c[1][0]
+                
+                acc = SequenceMatcher(None, c, b).ratio()
 
-            if acc > 0.7:
-                img = frame
+                if acc > 0.7:
+                    barcode = b
+                    ocr = c
+                    break
+            else:
+                continue
+            break
 
         # Convert Image to RGB format
         img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -148,34 +158,25 @@ class OCRApp:
         self.image_label.image = imgtk
         self.image_label.config(image=imgtk)
 
-        img = frame
+        self.master.update()
 
-        if detectedBarcodes:
-            barcode = detectedBarcodes[0].data.decode('utf-8')
-            
+        # 
+        if acc > 0.7:
+            # Write barcode Label            
+            self.barcode_result.config(text=barcode)
+            # Write OCR Label            
+            self.ocr_result.config(text=ocr)
+
+            # Write accuracy label
+            self.acc_result.config(text=str(acc * 100) + "%")
+
             i = 0
             for bar in self.barcode_result_list:
                 bar.config(text=barcode[i])
                 i += 1
 
-        if result:
-            ocr = result[0][1][0]
-
-        # Write barcode Label            
-        self.barcode_result.config(text=barcode)
-        # Write OCR Label            
-        self.ocr_result.config(text=ocr)
-
-        for o in self.ocr_result_list:
-            o.delete('0.end', 'end')
-
-        # 
-        if ocr != "Not Detected" and barcode != "Not Detected":
-            # Calculate string math ratio
-            acc = SequenceMatcher(None, ocr, barcode).ratio()
-
-            # Write accuracy label
-            self.acc_result.config(text=str(acc * 100) + "%")
+            for o in self.ocr_result_list:
+                o.delete('0.end', 'end')
 
             opcodes = SequenceMatcher(None, ocr, barcode).get_opcodes()
 
@@ -189,6 +190,8 @@ class OCRApp:
                     for i in range(op[3], op[4]):
                         self.ocr_result_list[i].insert(tk.END, ocr[i] if len(ocr) > i else ' ')
                         self.ocr_result_list[i].config(bg='red')
+            
+            self.is_running = False
         
         self.master.after(0, self.run)
 
