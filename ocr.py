@@ -30,7 +30,7 @@ class OCRApp:
 
         ## Create button to Start OCR
         self.start_button = tk.Button(frm_buttons, text="Start", command=self.start)
-        self.start_button.grid(row=0, column=0, sticky='ew', padx=5,pady=10)
+        self.start_button.grid(row=0, column=0, sticky='ew', padx=10,pady=10)
 
         ## Create button to Stop OCR
         self.stop_button = tk.Button(frm_buttons, text="Stop", command=self.stop)
@@ -119,27 +119,29 @@ class OCRApp:
         # Read Barcode
         detectedBarcodes = decode(frame)
 
-        # Draw barcode on image
-        draw_barcode(detectedBarcodes, frame)
-
         # Run OCR on image
         result = self.ocr_loaded_object.ocr(frame)[0]
+
+        # Draw barcode on image
+        draw_barcode(detectedBarcodes, frame)
 
         # Draw OCR result on image
         draw_ocr(result, frame)
 
         acc = 0.0
         for b in detectedBarcodes:
-            b = b.data.decode('utf-8')
+            bar = b.data.decode('utf-8')
             
             for c in result:
-                c = c[1][0]
+                cr = c[1][0]
                 
-                acc = SequenceMatcher(None, c, b).ratio()
+                rat = SequenceMatcher(None, cr, bar).ratio()
 
-                if acc > 0.7:
-                    barcode = b
-                    ocr = c
+                if rat > 0.7:
+                    barcode = bar
+                    ocr = cr
+                    print(cr)
+                    acc = rat
                     break
             else:
                 continue
@@ -149,7 +151,7 @@ class OCRApp:
         img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
         # Convert Array Image to PIL Image and resize
-        image = Image.fromarray(img).resize(( int(len(img[0])/2), int(len(img)/2) ))
+        image = Image.fromarray(img).resize(( int(800), int(len(img) * 800 / len(img[0])) ))
 
         # Convert PIL Image to PIL PhotoImage
         imgtk = ImageTk.PhotoImage(image)
@@ -160,37 +162,52 @@ class OCRApp:
 
         self.master.update()
 
+        # Write barcode Label            
+        self.barcode_result.config(text=barcode)
+        # Write OCR Label            
+        self.ocr_result.config(text=ocr)
+
         # 
         if acc > 0.7:
-            # Write barcode Label            
-            self.barcode_result.config(text=barcode)
-            # Write OCR Label            
-            self.ocr_result.config(text=ocr)
-
             # Write accuracy label
             self.acc_result.config(text=str(acc * 100) + "%")
 
-            i = 0
+            j = 0
             for bar in self.barcode_result_list:
-                bar.config(text=barcode[i])
-                i += 1
+                if j >= len(barcode):
+                    bar.config(text=' ')
+
+                bar.config(text=barcode[j])
+                j += 1
 
             for o in self.ocr_result_list:
                 o.delete('0.end', 'end')
-
+            
             opcodes = SequenceMatcher(None, ocr, barcode).get_opcodes()
 
             for op in opcodes:
                 if op[0] == 'equal':
                     for i in range(op[3], op[4]):
+                        if len(ocr) <= i or len(self.ocr_result_list) <= i:
+                            break
+                        
                         self.ocr_result_list[i].insert(tk.END, ocr[i])
                         self.ocr_result_list[i].config(bg='light green')
                 
-                elif op[0] == 'replace':
+                elif op[0] == 'replace' or op[0] == 'delete':
+                    for i in range(op[3], op[4]):
+                        if len(ocr) <= i or len(self.ocr_result_list) <= i:
+                            break
+
+                        self.ocr_result_list[i].insert(tk.END, ocr[i] if len(ocr) > i else ' ')
+                        self.ocr_result_list[i].config(bg='red')
+                
+                elif op[0] == 'insert':
                     for i in range(op[3], op[4]):
                         self.ocr_result_list[i].insert(tk.END, ocr[i] if len(ocr) > i else ' ')
                         self.ocr_result_list[i].config(bg='red')
             
+            self.master.update()
             self.is_running = False
         
         self.master.after(0, self.run)
