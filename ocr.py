@@ -1,10 +1,14 @@
 import tkinter as tk
-from tkinter import filedialog
+import cv2
+import time
+import numpy as np
+
 from PIL import Image, ImageTk
 from paddleocr import PaddleOCR
-import cv2
 from pyzbar.pyzbar import decode
 from difflib import SequenceMatcher
+
+from pysony import SonyAPI, ControlPoint
 
 class OCRApp:
     def __init__(self, master):
@@ -12,8 +16,7 @@ class OCRApp:
         master.title("OCR App")
         
         self.is_running = False
-
-        self.vid = cv2.VideoCapture(0)
+        self.is_started = False
 
         width= master.winfo_screenwidth()
         height= master.winfo_screenheight()
@@ -28,13 +31,17 @@ class OCRApp:
         frm_buttons = tk.Frame(master, relief=tk.RAISED, bd=2)
         frm_buttons.grid(row=0, column=0, sticky="ns")
 
-        ## Create button to Start OCR
+        ## Create button to Start Camera
         self.start_button = tk.Button(frm_buttons, text="Start", command=self.start)
         self.start_button.grid(row=0, column=0, sticky='ew', padx=10,pady=10)
 
-        ## Create button to Stop OCR
+        ## Create button to Capture
+        self.stop_button = tk.Button(frm_buttons, text="capture", command=self.capture)
+        self.stop_button.grid(row=1, column=0, sticky='ew', padx=10,pady=10)
+
+        ## Create button to Stop Camera
         self.stop_button = tk.Button(frm_buttons, text="Stop", command=self.stop)
-        self.stop_button.grid(row=1, column=0, sticky='ew')
+        self.stop_button.grid(row=2, column=0, sticky='ew', padx=10,pady=10)
 
         # Create image frame
         frm_image = tk.Frame(master, relief=tk.SUNKEN, bd=2)
@@ -104,12 +111,49 @@ class OCRApp:
 
         master.after(1000, self.run)
 
-    def run(self):
-        if not self.is_running:
-            self.master.after(0, self.run)
-            return
+    def start(self):
+        if not self.is_started:
+            self.start_camera()
         
-        ret, frame = self.vid.read()
+        self.is_running = True
+
+    def start_camera(self):
+        # Connect and set-up camera
+        search = ControlPoint()
+        cameras =  search.discover()
+
+        if len(cameras):
+            camera = SonyAPI(QX_ADDR=cameras[0])
+        else:
+            print("No camera found, aborting")
+            quit()
+
+
+        mode = camera.getAvailableApiList()
+
+        # For those cameras which need it
+        if 'startRecMode' in (mode['result'])[0]:
+            camera.startRecMode()
+            time.sleep(5)
+
+        # and re-read capabilities
+        mode = camera.getAvailableApiList()
+
+        url = camera.liveview()
+
+        self.lst = SonyAPI.LiveviewStreamThread(url)
+        self.lst.start()
+
+        self.is_started = True
+
+        
+    def capture(self):
+        if not self.is_running:
+            return
+
+        image = self.current_image
+
+        self.is_running = False
 
         # Set barcode result
         barcode = "Not Detected"
@@ -117,16 +161,16 @@ class OCRApp:
         ocr = "Not Detected"
 
         # Read Barcode
-        detectedBarcodes = decode(frame)
+        detectedBarcodes = decode(image)
 
         # Run OCR on image
-        result = self.ocr_loaded_object.ocr(frame)[0]
+        result = self.ocr_loaded_object.ocr(image)[0]
 
         # Draw barcode on image
-        draw_barcode(detectedBarcodes, frame)
+        draw_barcode(detectedBarcodes, image)
 
         # Draw OCR result on image
-        draw_ocr(result, frame)
+        draw_ocr(result, image)
 
         acc = 0.0
         for b in detectedBarcodes:
@@ -140,7 +184,6 @@ class OCRApp:
                 if rat > 0.7:
                     barcode = bar
                     ocr = cr
-                    print(cr)
                     acc = rat
                     break
             else:
@@ -148,13 +191,13 @@ class OCRApp:
             break
 
         # Convert Image to RGB format
-        img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        img = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
         # Convert Array Image to PIL Image and resize
-        image = Image.fromarray(img).resize(( int(800), int(len(img) * 800 / len(img[0])) ))
+        img = Image.fromarray(img).resize(( int(800), int(len(img) * 800 / len(img[0])) ))
 
         # Convert PIL Image to PIL PhotoImage
-        imgtk = ImageTk.PhotoImage(image)
+        imgtk = ImageTk.PhotoImage(img)
 
         # Write and display image
         self.image_label.image = imgtk
@@ -166,6 +209,7 @@ class OCRApp:
         self.barcode_result.config(text=barcode)
         # Write OCR Label            
         self.ocr_result.config(text=ocr)
+
 
         # 
         if acc > 0.7:
@@ -206,14 +250,32 @@ class OCRApp:
                     for i in range(op[3], op[4]):
                         self.ocr_result_list[i].insert(tk.END, ocr[i] if len(ocr) > i else ' ')
                         self.ocr_result_list[i].config(bg='red')
-            
-            self.master.update()
-            self.is_running = False
-        
-        self.master.after(0, self.run)
 
-    def start(self):
-        self.is_running = True
+    def run(self):
+        if not self.is_running:
+            self.master.after(5, self.run)
+            return
+            
+        image_file = self.lst.get_latest_view()
+        nparr = np.frombuffer(image_file, np.uint8)
+        frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+        self.current_image = frame
+        
+        # Convert Image to RGB format
+        img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+        # Convert Array Image to PIL Image and resize
+        img = Image.fromarray(img).resize(( int(800), int(len(img) * 800 / len(img[0])) ))
+
+        # Convert PIL Image to PIL PhotoImage
+        imgtk = ImageTk.PhotoImage(img)
+
+        # Write and display image
+        self.image_label.image = imgtk
+        self.image_label.config(image=imgtk)
+
+        self.master.after(25, self.run)
 
     def stop(self):
         self.is_running = False
